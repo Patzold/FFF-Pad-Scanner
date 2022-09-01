@@ -1,0 +1,3 @@
+pad_scanner_test
+https://pad.fridaysforfuture.is/p/scanner1
+https://pad.fridaysforfuture.is/p/scanner2

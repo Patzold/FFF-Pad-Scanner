@@ -10,6 +10,8 @@ URL_REGEX = "http[s]?\:\/\/pad\.fridaysforfuture\.(?:is|de)\/p\/[\w\.\-\%]+"
 MAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 # "Some people, when confronted with a problem, think, 'I know, I'll use regular expressions.' Now they have two problems." - J. Zawinski
 
+requests_counter = 0
+
 def get_pad_content(pad_name: str): # -> str
     """Lädt den Inhalt des Pads herunter
     
@@ -19,6 +21,7 @@ def get_pad_content(pad_name: str): # -> str
     Returns:
         Inhalt das Pads als String
     """
+    global requests_counter
     if "pad.fridaysforfuture.is" in pad_name:
         if pad_name[-1] != "/": pad_name += "/"
         url = pad_name + "export/txt"
@@ -30,6 +33,10 @@ def get_pad_content(pad_name: str): # -> str
     except Exception as e:
         print(colorama.Fore.RED + f"Exception in get_pad_content() while opening {url} \nOriginal Exception: {e}")
         pad_content = ""
+    
+    requests_counter = requests_counter + 1
+    if requests_counter % 10 == 0:
+        print(colorama.Fore.CYAN + f"INFO - {requests_counter} requests have been send")
     
     if pad_content == "Too many requests, please try again later.":
         print(colorama.Fore.RED + f"ACHTUNG - Zu viele requests für das Pad {pad_name} -> der Inhalt sowie alle Links des Pads werden nicht verarbeitet!")
@@ -105,7 +112,10 @@ def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
         else:
             with open(urls_path, "w") as writer:
                 for url in pad_urls:
-                    writer.write(url + "\n")
+                    try:
+                        writer.write(url + "\n")
+                    except Exception as e:
+                        print(colorama.Fore.RED + f"Exception while saving URLs to {urls_path} \nOriginal Exception: {e}")
     
     # wenn gewünscht alle Texte der Pads als .txt ausgeben
     if text_path is not None:
@@ -114,8 +124,11 @@ def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
         
         with open(text_path, "w") as writer:
             for t in texts:
-                writer.write(f"\n--- Text aus dem Pad {t[0]} ---\n")
-                writer.write(t[1])
+                try:
+                    writer.write(f"\n--- Text aus dem Pad {t[0]} ---\n")
+                    writer.write(t[1])
+                except Exception as e:
+                    print(colorama.Fore.RED + f"Exception while saving texts to {text_path} \nOriginal Exception: {e}")
     
     # wenn gewünscht alle Texte der Pads als .txt ausgeben
     if vs_path is not None:
@@ -124,7 +137,10 @@ def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
         
         with open(vs_path, "w") as writer:
             for v in vulnerabilities:
-                writer.write(f"{v[0]} -> {v[1]}\n")
+                try:
+                    writer.write(f"{v[0]} -> {v[1]}\n")
+                except Exception as e:
+                    print(colorama.Fore.RED + f"Exception while saving results to {vs_path} \nOriginal Exception: {e}")
     else:
         print(vulnerabilities)
 
@@ -159,5 +175,5 @@ if __name__ == "__main__":
     if startarg is None: startarg = args.start
     
     main(startarg, args.wait, text_path=args.text_path, urls_path=args.urls_path, vs_path=args.vulnerables_path)
-    # out = get_pad_content("https://pad.fridaysforfuture.is/p/Dortmund_gesammelte_Reden")
-    # print(out)
+    
+    # python scanner.py -sf "to_scan.txt" -urls "urls.txt" -txt "texts.txt" -vs "vs.txt"
