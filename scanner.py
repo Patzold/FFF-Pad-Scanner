@@ -40,7 +40,6 @@ def get_pad_content(pad_name: str): # -> str
     
     if pad_content == "Too many requests, please try again later.":
         print(colorama.Fore.RED + f"ACHTUNG - Zu viele requests für das Pad {pad_name} -> der Inhalt sowie alle Links des Pads werden nicht verarbeitet!")
-        # "\033[31m" + "Hello" + "\033[0m"
     
     return pad_content
 
