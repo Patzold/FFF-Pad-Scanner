@@ -1,6 +1,5 @@
 import os
 import re
-from tracemalloc import start
 import requests
 import argparse
 import colorama
@@ -8,11 +7,17 @@ import time
 
 URL_REGEX = "http[s]?\:\/\/pad\.fridaysforfuture\.(?:is|de)\/p\/[\w\.\-\%]+"
 MAIL_REGEX = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-# "Some people, when confronted with a problem, think, 'I know, I'll use regular expressions.' Now they have two problems." - J. Zawinski
+CLOUD_REGEX = r"cloud\.fridaysforfuture\.is/+[A-Za-z0-9.\&%/-]+"
+FFFUTURE_REGEX = r"fffutu.re/[\w-]+"
+WHATSAPP_REGEX = r"[A-Za-z0-9.-]+whatsapp\.com/+[A-Za-z0-9.\&%-]+"
+WA_ME_REGEX = r"wa\.me/[A-Za-z0-9]+"
+# "Some people, when confronted with a problem, think: 'I know, I'll use regular expressions.'
+# Now they have two problems."
+#       - J. Zawinski
 
 requests_counter = 0
 
-def get_pad_content(pad_name: str): # -> str
+def get_pad_content(pad_name: str, wait_for: int, wait_every: int): # -> str
     """Lädt den Inhalt des Pads herunter
     
     Args:
@@ -27,11 +32,15 @@ def get_pad_content(pad_name: str): # -> str
         url = pad_name + "export/txt"
     else: url = "https://pad.fridaysforfuture.is/p/" + pad_name + "/export/txt"
     
+    if requests_counter % wait_every == 0:
+        time.sleep(wait_for)
+    
     try:
         response = requests.get(url)
         pad_content = response.text
     except Exception as e:
-        print(colorama.Fore.RED + f"Exception in get_pad_content() while opening {url} \nOriginal Exception: {e}")
+        print(colorama.Fore.RED + f"Exception in get_pad_content() while \
+            opening {url} \nOriginal Exception: {e}")
         pad_content = ""
     
     requests_counter = requests_counter + 1
@@ -39,7 +48,8 @@ def get_pad_content(pad_name: str): # -> str
         print(colorama.Fore.CYAN + f"INFO - {requests_counter} requests have been send")
     
     if pad_content == "Too many requests, please try again later.":
-        print(colorama.Fore.RED + f"ACHTUNG - Zu viele requests für das Pad {pad_name} -> der Inhalt sowie alle Links des Pads werden nicht verarbeitet!")
+        print(colorama.Fore.RED + f"ACHTUNG - Zu viele requests für das Pad \
+            {pad_name} -> der Inhalt sowie alle Links des Pads werden nicht verarbeitet!")
     
     return pad_content
 
@@ -64,16 +74,96 @@ def search_for_urls(text: str, regex=URL_REGEX): # -> list
     return urls
 
 def email_finder(text: str, regex=MAIL_REGEX): # -> list
+    """Durchsucht Text nach E-Mail Adressen
+    
+    Args:
+        text: Der zu durchsuchende Text
+        regex: [optional] eigene regular expression
+    
+    Returns:
+        Liste mit gefundenen E-Mail Adressen
+    """
     mail_adresses = re.findall(regex, text)
     return mail_adresses
 
-def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
+def fff_links_finder(text: str, regex_cloud=CLOUD_REGEX, 
+                     regex_fffuture=FFFUTURE_REGEX): # -> list
+    """Durchsucht Text nach Links zur FFF Cloud oder dem FFF link shortener 
+    
+    Args:
+        text: Der zu durchsuchende Text
+        regex_cloud: [optional] eigene regular expression für
+                    chat.fridaysforfuture.is links
+        regex_fffuture: [optional] eigene regular expression für
+                    fffutu.re links
+    
+    Returns:
+        Liste mit gefundenen E-Mail Adressen
+    """
+    links = re.findall(regex_cloud, text)
+    links += re.findall(regex_fffuture, text)
+    return links
+
+def whatsapp_links_finder(text: str, regex_chat=WHATSAPP_REGEX,
+                          regex_account=WA_ME_REGEX): # -> list
+    """Durchsucht Text nach WhatsApp Links zu Gruppen / Chats / Personen
+    
+    Args:
+        text: Der zu durchsuchende Text
+        regex_chat: [optional] eigene regular expression für
+                    chat.whatapp.com links
+        regex_account: [optional] eigene regular expression für
+                    wa.me links
+    
+    Returns:
+        Liste mit gefundenen E-Mail Adressen
+    """
+    links = re.findall(regex_chat, text)
+    links += re.findall(regex_account, text)
+    return links
+
+def output(path: str, urls: list, text: str, vulnerabilities: list, data: dict):
+    """Schreibt die gesammelten Ergebnisse als .txt in ein Verzeichnis
+    """
+    if path[-1] != "/": path += "/"
+    
+    with open(path + "urls.txt", "w") as writer:
+        for url in urls:
+            try:
+                writer.write(url + "\n")
+            except Exception as e:
+                print(colorama.Fore.RED + f"Exception while saving URLs to \
+                    {path}urls.txt \nOriginal Exception: {e}")
+    
+    with open(path + "text.txt", "w") as writer:
+        for t in text:
+            try:
+                writer.write(f"\n--- Text aus dem Pad {t[0]} ---\n")
+                writer.write(t[1])
+            except Exception as e:
+                print(colorama.Fore.RED + f"Exception while saving texts to \
+                    {path}urls.txt \nOriginal Exception: {e}")
+    
+    with open(path + "vulnerabilities.txt", "w") as writer:
+        for v in vulnerabilities:
+            try:
+                writer.write(f"{v[0]} -> {v[1]}\n")
+            except Exception as e:
+                print(colorama.Fore.RED + f"Exception while saving results to \
+                    {path}vulnerabilities.txt \nOriginal Exception: {e}")
+    
+    import json
+    with open(path + "data.json", "w") as w:
+        json.dump(data, w)
+
+def main(start: str, wait: int, output_path: str, verbose=False, wait_for=0, wait_every=10):
     """Ich behalte den Überblick.
     """
     pad_urls = {}
     url_queue = []
     vulnerabilities = []
     texts = []
+    data = {"email": [], "tel": [], "wa": [], "links": []}
     
     if start.endswith(".txt"):
         with open(start, "r") as reader:
@@ -90,7 +180,7 @@ def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
         current_url = url_queue.pop()
         time.sleep(wait)
         
-        current_pad_text = get_pad_content(current_url)
+        current_pad_text = get_pad_content(current_url, wait_for, wait_every)
         found_urls = search_for_urls(current_pad_text)
         
         for url in found_urls:
@@ -100,48 +190,20 @@ def main(start: str, wait: int, text_path=None, urls_path=None, vs_path=None):
         texts.append([current_url, current_pad_text])
         
         mails = email_finder(current_pad_text)
+        fff_links = fff_links_finder(current_pad_text)
+        whatsapp_links = whatsapp_links_finder(current_pad_text)
         
         if len(mails) > 0:
             vulnerabilities.append([mails, current_url])
+            data["email"].append([mails, current_url])
+        if len(fff_links) > 0:
+            vulnerabilities.append([fff_links, current_url])
+            data["links"].append([fff_links, current_url])
+        if len(whatsapp_links) > 0:
+            vulnerabilities.append([whatsapp_links, current_url])
+            data["wa"].append([whatsapp_links, current_url])
     
-    # wenn gewünscht URLs als .txt ausgeben
-    if urls_path is not None:
-        if not os.path.isfile(urls_path):
-            print(colorama.Fore.RED + f"ACHTUNG - Der Pfad {urls_path} zum speichern aller URLs existiert nicht!")
-        else:
-            with open(urls_path, "w") as writer:
-                for url in pad_urls:
-                    try:
-                        writer.write(url + "\n")
-                    except Exception as e:
-                        print(colorama.Fore.RED + f"Exception while saving URLs to {urls_path} \nOriginal Exception: {e}")
-    
-    # wenn gewünscht alle Texte der Pads als .txt ausgeben
-    if text_path is not None:
-        if not os.path.isfile(text_path):
-            print(colorama.Fore.RED + f"ACHTUNG - Der Pfad {text_path} zum speichern aller Texte existiert nicht!")
-        
-        with open(text_path, "w") as writer:
-            for t in texts:
-                try:
-                    writer.write(f"\n--- Text aus dem Pad {t[0]} ---\n")
-                    writer.write(t[1])
-                except Exception as e:
-                    print(colorama.Fore.RED + f"Exception while saving texts to {text_path} \nOriginal Exception: {e}")
-    
-    # wenn gewünscht alle Texte der Pads als .txt ausgeben
-    if vs_path is not None:
-        if not os.path.isfile(vs_path):
-            print(colorama.Fore.RED + f"ACHTUNG - Der Pfad {vs_path} zum speichern aller Ergebnise existiert nicht!")
-        
-        with open(vs_path, "w") as writer:
-            for v in vulnerabilities:
-                try:
-                    writer.write(f"{v[0]} -> {v[1]}\n")
-                except Exception as e:
-                    print(colorama.Fore.RED + f"Exception while saving results to {vs_path} \nOriginal Exception: {e}")
-    else:
-        print(vulnerabilities)
+    output(output_path, pad_urls, texts, vulnerabilities, data)
 
 if __name__ == "__main__":
     colorama.init()
@@ -158,21 +220,28 @@ if __name__ == "__main__":
     parser.add_argument("-w", "--wait", type=int,
                         help="Wartezeit in Sekunden zwischen jedem request",
                         default=0)
-    parser.add_argument("-txt", "--text_path", type=str,
-                        help="Wenn der gesammte Text aller Pads abgespeichert werden soll, gib hier einen Dateipfad an (.txt Datei)",
-                        default=None)
-    parser.add_argument("-urls", "--urls_path", type=str,
-                        help="Wenn alle URLs zu den gefundenen Pads abgespeichert werden soll, gib hier einen Dateipfad an (.txt Datei)",
-                        default=None)
-    parser.add_argument("-vs", "--vulnerables_path", type=str,
-                        help="Wenn alle gefundenen Mailadressen und Tel Nummern abgespeichert werden soll, gib hier einen Dateipfad an (.txt Datei)",
-                        default=None)
+    parser.add_argument("-o", "--output", type=str,
+                        help="Pfad zu einem Verzeichnis indem die Ergebnisse gespeichert werden. Der standard Pfad ist 'output/'. Bereits existierende Dateien werden überschrieben.",
+                        default="output/")
+    parser.add_argument("-v", "--verbose", type=bool,
+                        help="Bei True werden die Ergebnisse auch im Terminal geprintet",
+                        default=False)
+    parser.add_argument("-wf", "--wait_for", type=int,
+                        help="Wartezeit in Sekunden alle --every requests",
+                        default=0)
+    parser.add_argument("-e", "--every", type=int,
+                        help="Anzahl an requests zwischen Wartezeit von --wait_for Sekunden",
+                        default=10)
+    parser.add_argument("--open_links", type=bool,
+                        help="Öffnet alle gefunden FFF Cloud und fffuture.is Links in einem neuen Browserfenster",
+                        default=False)
     
     args = parser.parse_args()
     
     startarg = args.start_file
     if startarg is None: startarg = args.start
     
-    main(startarg, args.wait, text_path=args.text_path, urls_path=args.urls_path, vs_path=args.vulnerables_path)
+    main(startarg, wait=0, output_path=args.output, verbose=args.verbose,
+         wait_for=args.wait_for, wait_every=args.every)
     
     # python scanner.py -sf "to_scan.txt" -urls "urls.txt" -txt "texts.txt" -vs "vs.txt"
