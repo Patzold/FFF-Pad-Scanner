@@ -1,2 +1,0 @@
-['mobilitaetskonferenz@riseup.net'] -> https://pad.fridaysforfuture.is/p/Protokoll-4.5.20
-['1live@wdr.de', 'content-pool@rtl-west.de', 'derwesten@derwesten.de', 'dortmund@dpa.com', 'info@nordstadtblogger.de', 'info@rhein-ruhr-presse.de', 'info@ruhrbarone.de', 'lokalredaktion.dortmund@lensingmedia.de', 'lokalzeit.dortmund@wdr.de', 'redaktion@bodoev.de', 'redaktion@cityanzeiger-dortmund.de', 'redaktion@ruhr24.de', 'redaktion@radio912.de', 'studio.dortmund@wdr.de', 'wdr2@wdr.de', 'wdr5@wdr.de', 'hello@bootmedia.de'] -> https://pad.fridaysforfuture.is/p/hast93HBhbqXLiVZ_8ld
