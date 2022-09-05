@@ -51,7 +51,6 @@ def get_pad_content(pad_name: str, wait_for: int, wait_every: int): # -> str
     if pad_content == "Too many requests, please try again later.":
         print(colorama.Fore.RED + f"ACHTUNG - Zu viele requests für das Pad \
             {pad_name} -> der Inhalt sowie alle Links des Pads werden nicht verarbeitet!")
-    print(requests_counter)
     
     return pad_content
 
@@ -194,6 +193,8 @@ def output(path: str, urls: list, data: dict):
     """Schreibt die gesammelten Ergebnisse als .txt in ein Verzeichnis
     """
     if path[-1] != "/": path += "/"
+    # einfach json raus und fertig, wenn motivation besteht kann man
+    # den auskommentierten teil noch fixen
     """
     with open(path + "urls.txt", "w") as writer:
         for url in urls:
@@ -248,7 +249,7 @@ def main(start: str, wait: int, output_path: str, verbose=False,
         pad_urls[start] = 1
         url_queue.append(start)
     
-    # try:
+    print(colorama.Fore.GREEN + f"main() loop started")
     while len(url_queue) > 0:
         current_url = url_queue.pop()
         time.sleep(wait)
@@ -284,9 +285,6 @@ def main(start: str, wait: int, output_path: str, verbose=False,
         
         if requests_counter % save_every == 0 and requests_counter != 0:
             output(output_path, pad_urls, data)
-    # except Exception as e:
-    #     print(colorama.Fore.RED + f"Exception in main loop while processing "
-    #           + f"{current_url}\nOriginal Exception: {e}")
     
     output(output_path, pad_urls, data)
 
@@ -313,7 +311,7 @@ if __name__ == "__main__":
                             Der standard Pfad ist 'output/'. Bereits existierende Dateien werden überschrieben.",
                         default="output/")
     parser.add_argument("-v", "--verbose", type=bool,
-                        help="Bei True werden die Ergebnisse auch im Terminal geprintet",
+                        help="[inaktiv] Bei True werden die Ergebnisse auch im Terminal geprintet.",
                         default=False)
     parser.add_argument("-wf", "--wait_for", type=int,
                         help="Wartezeit in Sekunden alle --every requests",
@@ -322,7 +320,7 @@ if __name__ == "__main__":
                         help="Anzahl an requests zwischen Wartezeit von --wait_for Sekunden",
                         default=10)
     parser.add_argument("--open_links", type=bool,
-                        help="Öffnet alle gefunden FFF Cloud und fffutu.re \
+                        help="[inaktiv] Öffnet alle gefunden FFF Cloud und fffutu.re \
                             Links in einem neuen Browserfenster",
                         default=False)
     parser.add_argument("--save_every", type=int,
@@ -336,6 +334,6 @@ if __name__ == "__main__":
     if startarg is None: startarg = args.start
     
     main(startarg, wait=args.wait, output_path=args.output, verbose=args.verbose,
-         wait_for=args.wait_for, wait_every=args.every)
+         wait_for=args.wait_for, wait_every=args.every, save_every=args.save_every)
     
     # python3 scanner.py -sf "start.txt" -w 5 -o "output" -wf 30 -e 10 --save_every 25
